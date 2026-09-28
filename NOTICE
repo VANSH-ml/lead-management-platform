@@ -1,0 +1,14 @@
+Vansh CRM
+Copyright (c) 2026 Vansh Wadhwani
+
+This product includes software developed by Vansh Wadhwani, licensed under the MIT License (see LICENSE).
+
+Third-party notices
+-------------------
+
+- React, Express, and other npm dependencies: see each package’s license
+  in package-lock.json / node_modules.
+- exceljs: MIT License.
+- Google Fonts families DM Sans and Instrument Serif are loaded from
+  fonts.googleapis.com under the SIL Open Font License (OFL).
+- Vansh CRM logo and vector marks in public/ are copyright Vansh Wadhwani.

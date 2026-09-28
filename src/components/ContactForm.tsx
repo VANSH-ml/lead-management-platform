@@ -1,0 +1,281 @@
+import { useState, type FormEvent } from 'react';
+import type { Contact, Stage } from '../types';
+import { DEFAULT_CONTACT_STATUSES, DEFAULT_STAGES } from '../defaults';
+import type { CrmStore } from '../hooks/useCrmStore';
+import { normalizeOptionalUrl } from '../lib/urls';
+import { Field, inputClass, btnPrimary, btnGhost } from './ui';
+import { ConversationPanel } from './ConversationPanel';
+
+interface ContactFormProps {
+  store: CrmStore;
+  contactStatuses?: string[];
+  stages?: string[];
+  initial?: Contact | null;
+  defaultCompanyId?: string | null;
+  onDone: () => void;
+}
+
+export function ContactForm({
+  store,
+  contactStatuses = [...DEFAULT_CONTACT_STATUSES],
+  stages = [...DEFAULT_STAGES],
+  initial,
+  defaultCompanyId,
+  onDone,
+}: ContactFormProps) {
+  const [form, setForm] = useState({
+    contactName: initial?.contactName ?? '',
+    companyId: initial?.companyId ?? defaultCompanyId ?? '',
+    role: initial?.role ?? '',
+    phone: initial?.phone ?? '',
+    email: initial?.email ?? '',
+    linkedInProfile: initial?.linkedInProfile ?? '',
+    contactStatus: initial?.contactStatus ?? contactStatuses[0] ?? 'Not Contacted',
+    champion: initial?.champion ?? false,
+    lastContacted: initial?.lastContacted ?? '',
+    nextFollowUp: initial?.nextFollowUp ?? '',
+    notes: initial?.notes ?? '',
+  });
+  const [stageBusy, setStageBusy] = useState(false);
+
+  const set = (key: string, value: string | boolean) => setForm((f) => ({ ...f, [key]: value }));
+
+  const linkedCompany = form.companyId
+    ? store.companies.find((c) => c.id === form.companyId)
+    : undefined;
+
+  const onCompanyStageChange = async (stage: string) => {
+    if (!form.companyId || !linkedCompany || stage === linkedCompany.stage) return;
+    setStageBusy(true);
+    try {
+      await store.moveCompanyStage(form.companyId, stage as Stage, {
+        stageChangeSource: 'contact_form',
+      });
+    } finally {
+      setStageBusy(false);
+    }
+  };
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.contactName.trim()) return;
+
+    const payload = {
+      contactName: form.contactName.trim(),
+      companyId: form.companyId || null,
+      role: form.role,
+      phone: form.phone,
+      email: form.email,
+      linkedInProfile: normalizeOptionalUrl(form.linkedInProfile),
+      contactStatus: form.contactStatus,
+      champion: form.champion,
+      lastContacted: form.lastContacted || null,
+      nextFollowUp: form.nextFollowUp || null,
+      notes: form.notes,
+    };
+
+    if (initial) {
+      await store.updateContact(initial.id, payload);
+    } else {
+      await store.addContact(payload);
+    }
+    onDone();
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Contact Name *" className="sm:col-span-2">
+          <input
+            className={inputClass}
+            value={form.contactName}
+            onChange={(e) => set('contactName', e.target.value)}
+            required
+            placeholder="Full name"
+          />
+        </Field>
+
+        <Field label="Company">
+          <select
+            className={inputClass}
+            value={form.companyId}
+            onChange={(e) => set('companyId', e.target.value)}
+          >
+            <option value="">— None —</option>
+            {store.companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.companyName}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        {form.companyId ? (
+          <div className="flex flex-col justify-end gap-2">
+            <button
+              type="button"
+              className={btnGhost}
+              onClick={() => {
+                const url = `${window.location.origin}/?page=pipeline&companyId=${encodeURIComponent(form.companyId)}`;
+                window.open(url, '_blank', 'noopener,noreferrer');
+              }}
+            >
+              Open company
+            </button>
+          </div>
+        ) : null}
+
+        {form.companyId ? (
+          <Field label="Company pipeline stage">
+            <select
+              className={inputClass}
+              value={linkedCompany?.stage ?? stages[0] ?? ''}
+              disabled={!linkedCompany || stageBusy}
+              onChange={(e) => void onCompanyStageChange(e.target.value)}
+              aria-label="Company pipeline stage"
+            >
+              {stages.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+
+        <Field label="Role / Designation">
+          <input
+            className={inputClass}
+            value={form.role}
+            onChange={(e) => set('role', e.target.value)}
+            placeholder="e.g. VP Operations"
+          />
+        </Field>
+
+        <Field label="Phone Number">
+          <input
+            className={inputClass}
+            value={form.phone}
+            onChange={(e) => set('phone', e.target.value)}
+          />
+        </Field>
+
+        <Field label="Email">
+          <input
+            type="email"
+            className={inputClass}
+            value={form.email}
+            onChange={(e) => set('email', e.target.value)}
+          />
+        </Field>
+
+        <Field label="Contact Status">
+          <select
+            className={inputClass}
+            value={form.contactStatus}
+            onChange={(e) => set('contactStatus', e.target.value)}
+          >
+            {contactStatuses.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Last Contacted">
+          <input
+            type="date"
+            className={inputClass}
+            value={form.lastContacted}
+            onChange={(e) => set('lastContacted', e.target.value)}
+          />
+        </Field>
+
+        <Field label="Next Follow-up">
+          <input
+            type="date"
+            className={inputClass}
+            value={form.nextFollowUp}
+            onChange={(e) => set('nextFollowUp', e.target.value)}
+          />
+        </Field>
+
+        <Field label="LinkedIn Profile" className="sm:col-span-2">
+          <input
+            type="text"
+            inputMode="url"
+            autoComplete="url"
+            className={inputClass}
+            value={form.linkedInProfile}
+            onChange={(e) => set('linkedInProfile', e.target.value)}
+            placeholder="linkedin.com/in/… or https://…"
+          />
+        </Field>
+
+        <Field label="Notes" className="sm:col-span-2">
+          <textarea
+            className={`${inputClass} min-h-[80px] resize-y`}
+            value={form.notes}
+            onChange={(e) => set('notes', e.target.value)}
+          />
+        </Field>
+
+        <label className="flex items-center gap-2 text-sm sm:col-span-2">
+          <input
+            type="checkbox"
+            checked={form.champion}
+            onChange={(e) => set('champion', e.target.checked)}
+            className="h-4 w-4 rounded-none border-stone-300 text-teal-700 focus:ring-teal-600"
+          />
+          <span className="font-medium text-stone-700">
+            Champion{' '}
+            <span className="font-normal text-stone-500">
+              (auto-sets as Primary Contact on the company)
+            </span>
+          </span>
+        </label>
+      </div>
+
+      {initial ? (
+        <ConversationPanel
+          store={store}
+          contactId={initial.id}
+          companyId={form.companyId || initial.companyId}
+          stages={stages}
+        />
+      ) : (
+        <p className="rounded-none border border-dashed border-stone-300 px-3 py-2 text-xs text-stone-500">
+          Save this contact first to upload call recordings.
+        </p>
+      )}
+
+      <div className="flex items-center justify-between gap-3 border-t border-[var(--color-line)] pt-4">
+        {initial && store.canDelete ? (
+          <button
+            type="button"
+            className="text-sm text-rose-600 hover:underline"
+            onClick={async () => {
+              if (confirm(`Delete ${initial.contactName}?`)) {
+                await store.deleteContact(initial.id);
+                onDone();
+              }
+            }}
+          >
+            Delete contact
+          </button>
+        ) : (
+          <span />
+        )}
+        <div className="flex gap-2">
+          <button type="button" className={btnGhost} onClick={onDone}>
+            Cancel
+          </button>
+          <button type="submit" className={btnPrimary}>
+            {initial ? 'Save changes' : 'Add contact'}
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+}
