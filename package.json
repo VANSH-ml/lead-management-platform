@@ -59,7 +59,7 @@
     "tailwindcss": "^4.3.2",
     "tsx": "^4.23.15",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0",
+    "vite": "^8.3.1",
     "vitest": "^3.2.7"
   },
   "description": "Vansh CRM — A high-velocity, self-hosted CRM platform built by Vansh Wadhwani for pipeline management, contact tracking, SDR performance, and conversation intelligence.",
